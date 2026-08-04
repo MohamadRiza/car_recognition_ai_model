@@ -41,6 +41,7 @@ NUM_WORKERS = 0         # 0 = main thread (safe on Windows)
 DEVICE = "cpu"          # No NVIDIA GPU detected
 
 # ── Car Attributes (classification labels) ──────────────────
+CAR_MAKES = ["Toyota", "Honda", "BMW", "Mercedes-Benz", "Tesla", "Ford", "Volkswagen", "Hyundai", "Kia", "Audi"]
 BODY_TYPES = ["SUV", "Sedan", "Hatchback", "Convertible", "Coupe", "Wagon", "Pickup"]
 FUEL_TYPES = ["Petrol", "Diesel", "Electric", "Hybrid", "Plug-in Hybrid"]
 TRANSMISSION_TYPES = ["Automatic", "Manual", "Semi-Automatic"]

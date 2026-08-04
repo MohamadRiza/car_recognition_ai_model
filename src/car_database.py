@@ -197,6 +197,76 @@ BODY_TYPE_RULES = {
 }
 
 
+import os
+import csv
+
+def load_csv_data():
+    csv_path = "E:/dataset_for_car_AI_Site/Cars Datasets 2025.csv"
+    if not os.path.exists(csv_path):
+        return
+        
+    print(f"[Database] Loading premium specifications from {csv_path}...")
+    try:
+        with open(csv_path, mode='r', encoding='latin-1') as f:
+            reader = csv.DictReader(f)
+            count = 0
+            for row in reader:
+                make = row.get("Company Names", "").strip().title()
+                # Clean brand names (e.g. FERRARI -> Ferrari, ROLLS ROYCE -> Rolls-Royce or Mercedes-Benz)
+                if make == "Mercedes": make = "Mercedes-Benz"
+                elif make == "Rolls Royce": make = "Rolls-Royce"
+                
+                model = row.get("Cars Names", "").strip()
+                engine = row.get("Engines", "").strip()
+                cc = row.get("CC/Battery Capacity", "").strip()
+                hp_str = row.get("HorsePower", "").strip()
+                speed_str = row.get("Total Speed", "").strip()
+                price_str = row.get("Cars Prices", "").strip()
+                fuel = row.get("Fuel Types", "").strip().title()
+                seats_str = row.get("Seats", "").strip()
+                
+                # Parse numeric values from string fields
+                hp = 180
+                if hp_str:
+                    clean_hp = "".join(c for c in hp_str if c.isdigit() or c == '-')
+                    if '-' in clean_hp:
+                        clean_hp = clean_hp.split('-')[-1]
+                    if clean_hp.isdigit():
+                        hp = int(clean_hp)
+                        
+                speed = 200
+                if speed_str:
+                    clean_speed = "".join(c for c in speed_str if c.isdigit() or c == '-')
+                    if '-' in clean_speed:
+                        clean_speed = clean_speed.split('-')[-1]
+                    if clean_speed.isdigit():
+                        speed = int(clean_speed)
+                
+                seats = 5
+                if seats_str.isdigit():
+                    seats = int(seats_str)
+                    
+                # Format key for years 2020-2026
+                for yr in range(2020, 2027):
+                    key = f"{make} {model} {yr}"
+                    CAR_DATABASE[key] = {
+                        "fuel": "Hybrid" if "hybrid" in fuel.lower() else "Electric" if "electric" in fuel.lower() or "battery" in cc.lower() else fuel,
+                        "transmission": "Manual" if make in ["Ferrari", "Lamborghini", "Aston Martin"] else "Automatic",
+                        "seats": seats,
+                        "engine": f"{engine} ({cc})",
+                        "top_speed_kmh": speed,
+                        "horsepower": hp,
+                        "price": price_str,
+                    }
+                    count += 1
+            print(f"[Database] Loaded {count} dynamic car specifications.")
+    except Exception as e:
+        print(f"[Database] Error reading CSV: {e}")
+
+# Run loader
+load_csv_data()
+
+
 # ─────────────────────────────────────────────────────────────
 # LOOKUP FUNCTIONS
 # ─────────────────────────────────────────────────────────────
@@ -220,14 +290,23 @@ def lookup_specs(make: str, model: str, year: int) -> dict:
             specs["found_in_db"] = True
             return specs
 
-    # Fallback: partial match on model name
-    make_model = f"{make} {model}".lower()
+    # Fallback: partial match or word overlap on model name
+    make_clean = make.lower()
+    model_clean = model.lower()
     for key, specs in CAR_DATABASE.items():
         key_lower = key.lower()
-        if make.lower() in key_lower and model.lower() in key_lower:
-            result = specs.copy()
-            result["found_in_db"] = True
-            return result
+        if make_clean in key_lower:
+            key_model = key_lower.replace(make_clean, "").strip()
+            # remove year
+            key_model_words = [w for w in key_model.split() if not w.isdigit()]
+            model_words = [w for w in model_clean.split()]
+            
+            # Check if there is intersection of model words
+            overlap = set(key_model_words) & set(model_words)
+            if overlap:
+                result = specs.copy()
+                result["found_in_db"] = True
+                return result
 
     # Final fallback: rule-based estimates
     return _heuristic_specs(make, model, year)
@@ -273,15 +352,31 @@ def _heuristic_specs(make: str, model: str, year: int) -> dict:
     else:
         seats = 5
 
-    return {
+    # Premium/Luxury brand defaults
+    horsepower = 150
+    top_speed = 180
+    engine = "N/A"
+    price = None
+
+    make_lower = make.lower()
+    if any(m in make_lower for m in ["maserati", "ferrari", "lamborghini", "porsche", "bugatti", "aston martin"]):
+        horsepower = 550
+        top_speed = 310
+        engine = "V6 Twin-Turbo" if "maserati" in make_lower else "V8 Twin-Turbo"
+        price = "$185,000"
+
+    result = {
         "fuel":          fuel,
         "transmission":  transmission,
         "seats":         seats,
-        "engine":        "N/A",
-        "top_speed_kmh": 180,
-        "horsepower":    150,
+        "engine":        engine,
+        "top_speed_kmh": top_speed,
+        "horsepower":    horsepower,
         "found_in_db":   False,
     }
+    if price:
+        result["price"] = price
+    return result
 
 
 def get_all_makes() -> list:

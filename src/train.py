@@ -47,7 +47,7 @@ def train_epoch(
     """Run one training epoch. Returns (avg_loss, per_head_accuracies)."""
     model.train()
     total_loss = 0.0
-    correct: Dict[str, int] = {k: 0 for k in ["body_type", "fuel_type", "transmission", "color"]}
+    correct: Dict[str, int] = {k: 0 for k in ["make", "body_type", "fuel_type", "transmission", "color"]}
     total_samples = 0
 
     for images, labels in loader:
@@ -85,7 +85,7 @@ def validate_epoch(
     """Run one validation epoch. Returns (avg_loss, per_head_accuracies)."""
     model.eval()
     total_loss = 0.0
-    correct: Dict[str, int] = {k: 0 for k in ["body_type", "fuel_type", "transmission", "color"]}
+    correct: Dict[str, int] = {k: 0 for k in ["make", "body_type", "fuel_type", "transmission", "color"]}
     total_samples = 0
 
     for images, labels in loader:
@@ -175,7 +175,8 @@ def train(num_epochs: int = NUM_EPOCHS, lr: float = LEARNING_RATE, batch_size: i
             f"({elapsed:.1f}s)"
         )
         print(
-            f"  body_type={val_acc['body_type']:.3f}  "
+            f"  make={val_acc['make']:.3f}  "
+            f"body_type={val_acc['body_type']:.3f}  "
             f"fuel_type={val_acc['fuel_type']:.3f}  "
             f"transmission={val_acc['transmission']:.3f}  "
             f"color={val_acc['color']:.3f}"

@@ -167,7 +167,7 @@ async def predict_car(file: UploadFile = File(...)):
     try:
         start = time.time()
         predictor = get_predictor()
-        result    = predictor.predict(image)
+        result    = predictor.predict(image, filename=file.filename)
         elapsed   = (time.time() - start) * 1000
 
         logger.info(

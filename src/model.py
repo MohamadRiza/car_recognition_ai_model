@@ -18,7 +18,7 @@ import timm
 
 from config import (
     MODEL_NAME, DEVICE, IMG_SIZE,
-    BODY_TYPES, FUEL_TYPES, TRANSMISSION_TYPES, CAR_COLORS,
+    CAR_MAKES, BODY_TYPES, FUEL_TYPES, TRANSMISSION_TYPES, CAR_COLORS,
     MODEL_CHECKPOINT,
 )
 
@@ -53,6 +53,7 @@ class CarAttributeModel(nn.Module):
         )
 
         # ── Classification Heads ──────────────────────────────
+        self.head_make         = self._make_head(512, len(CAR_MAKES))
         self.head_body_type    = self._make_head(512, len(BODY_TYPES))
         self.head_fuel_type    = self._make_head(512, len(FUEL_TYPES))
         self.head_transmission = self._make_head(512, len(TRANSMISSION_TYPES))
@@ -72,6 +73,7 @@ class CarAttributeModel(nn.Module):
         shared   = self.shared_fc(features)
 
         return {
+            "make":         self.head_make(shared),
             "body_type":    self.head_body_type(shared),
             "fuel_type":    self.head_fuel_type(shared),
             "transmission": self.head_transmission(shared),
@@ -124,6 +126,7 @@ class MultiHeadLoss(nn.Module):
         super().__init__()
         self.ce = nn.CrossEntropyLoss()
         self.weights = weights or {
+            "make":         1.8,
             "body_type":    1.5,
             "fuel_type":    1.0,
             "transmission": 1.0,

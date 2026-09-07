@@ -40,14 +40,10 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# CORS — allow Next.js dev server
+# CORS — allow Next.js dev server & all local origin ports
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        NEXT_JS_ORIGIN,
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -89,12 +85,14 @@ class PredictionResponse(BaseModel):
     data:      Optional[PredictionResult] = None
     error:     Optional[str] = None
     took_ms:   Optional[float] = None
+    source:    str = "car_recognition_ai_model"
 
 
 class HealthResponse(BaseModel):
     status:       str
     model_loaded: bool
     version:      str = "1.0.0"
+    engine:       str = "PyTorch Vision Transformer & EfficientNet"
 
 
 # ── Middleware: Request Logging ───────────────────────────────
@@ -115,6 +113,7 @@ async def root():
     return {
         "name":    "Vehicle AI API",
         "version": "1.0.0",
+        "status":  "running",
         "docs":    "/docs",
         "health":  "/health",
         "predict": "POST /predict",
@@ -126,6 +125,8 @@ async def health_check():
     return HealthResponse(
         status="ok",
         model_loaded=_predictor is not None,
+        version="1.0.0",
+        engine="PyTorch Vision Transformer & EfficientNet",
     )
 
 
@@ -138,14 +139,6 @@ async def predict_car(file: UploadFile = File(...)):
     Returns: JSON with make, model, year, color, body type, fuel type,
              transmission, mileage, price, description, confidence
     """
-
-    # ── Validate file type ────────────────────────────────────
-    allowed_types = {"image/jpeg", "image/png", "image/webp", "image/jpg"}
-    if file.content_type not in allowed_types:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unsupported file type: {file.content_type}. Use JPEG, PNG, or WebP."
-        )
 
     # ── Read & validate size ──────────────────────────────────
     contents = await file.read()
@@ -161,7 +154,7 @@ async def predict_car(file: UploadFile = File(...)):
     try:
         image = Image.open(io.BytesIO(contents)).convert("RGB")
     except Exception:
-        raise HTTPException(status_code=400, detail="Could not read image file.")
+        raise HTTPException(status_code=400, detail="Could not read or parse image file.")
 
     # ── Run prediction ────────────────────────────────────────
     try:
@@ -171,19 +164,26 @@ async def predict_car(file: UploadFile = File(...)):
         elapsed   = (time.time() - start) * 1000
 
         logger.info(
-            f"Predicted: {result['bodytype']} | {result['color']} | "
-            f"conf={result['confidence']:.2%} | {elapsed:.0f}ms"
+            f"Predicted: {result.get('make')} {result.get('model')} ({result.get('year')}) | "
+            f"{result.get('bodytype')} | {result.get('color')} | "
+            f"conf={result.get('confidence', 0):.2%} | {elapsed:.0f}ms"
         )
 
         return PredictionResponse(
             success=True,
             data=PredictionResult(**result),
             took_ms=round(elapsed, 1),
+            source="car_recognition_ai_model",
         )
 
     except Exception as e:
         logger.error(f"Prediction failed: {e}\n{traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=f"Prediction error: {str(e)}")
+        return PredictionResponse(
+            success=False,
+            error=str(e),
+            took_ms=0.0,
+            source="car_recognition_ai_model",
+        )
 
 
 @app.exception_handler(Exception)
@@ -191,7 +191,7 @@ async def global_exception_handler(request: Request, exc: Exception):
     logger.error(f"Unhandled exception: {exc}")
     return JSONResponse(
         status_code=500,
-        content={"success": False, "error": "Internal server error"},
+        content={"success": False, "error": str(exc)},
     )
 
 
@@ -207,6 +207,6 @@ if __name__ == "__main__":
         "api:app",
         host=API_HOST,
         port=API_PORT,
-        reload=API_RELOAD,
+        reload=False,
         log_level="info",
     )
